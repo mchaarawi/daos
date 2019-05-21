@@ -223,7 +223,7 @@ post:
 	}
 
 end:
-	vos_update_end(ioh, rdone->ro_version, &rdone->ro_dkey, rc, NULL);
+	rc = vos_update_end(ioh, rdone->ro_version, &rdone->ro_dkey, rc, NULL);
 	return rc;
 }
 
@@ -343,6 +343,7 @@ rebuild_dkey(struct rebuild_tgt_pool_tracker *rpt,
 	data_size = daos_iods_len(rdone->ro_iods, rdone->ro_iod_num);
 
 	D_DEBUG(DB_REBUILD, "data size is "DF_U64"\n", data_size);
+again:
 	/* DAOS_REBUILD_TGT_NO_REBUILD are for testing purpose */
 	if ((data_size > 0 || data_size == (daos_size_t)(-1)) &&
 	    !DAOS_FAIL_CHECK(DAOS_REBUILD_NO_REBUILD)) {
@@ -351,6 +352,14 @@ rebuild_dkey(struct rebuild_tgt_pool_tracker *rpt,
 							 rebuild_cont);
 		else
 			rc = rebuild_fetch_update_bulk(rdone, oh, rebuild_cont);
+	}
+
+	if (rc == -DER_INPROGRESS) {
+		/* Ideally it should trigger the COS commit, but not easy here,
+		 * let's just retry to hope dtx can commit.
+		 */
+		D_DEBUG(DB_REBUILD, "retry rebuild %p\n", rdone);
+		D_GOTO(again, rc);
 	}
 
 	tls->rebuild_pool_rec_count += rdone->ro_rec_num;
