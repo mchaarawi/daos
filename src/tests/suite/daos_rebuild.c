@@ -60,7 +60,7 @@ rebuild_exclude_tgt(test_arg_t **args, int arg_cnt, d_rank_t rank,
 
 	for (i = 0; i < arg_cnt; i++) {
 		daos_exclude_target(args[i]->pool.pool_uuid,
-				    args[i]->group, &args[i]->pool.svc,
+				    args[i]->group, &args[i]->pool.orig_svc,
 				    rank, tgt_idx);
 		sleep(2);
 	}
@@ -133,7 +133,7 @@ rebuild_add_back_tgts(test_arg_t *arg, d_rank_t failed_rank, int *failed_tgts,
 
 		for (i = 0; i < nr; i++)
 			daos_add_target(arg->pool.pool_uuid, arg->group,
-					&arg->pool.svc, failed_rank,
+					&arg->pool.orig_svc, failed_rank,
 					failed_tgts ? failed_tgts[i] : -1);
 	}
 	MPI_Barrier(MPI_COMM_WORLD);
@@ -1104,7 +1104,7 @@ rebuild_pool_connect_internal(void *data)
 	MPI_Barrier(MPI_COMM_WORLD);
 	if (arg->myrank == 0) {
 		rc = daos_pool_connect(arg->pool.pool_uuid, arg->group,
-				       &arg->pool.svc, DAOS_PC_RW,
+				       &arg->pool.orig_svc, DAOS_PC_RW,
 				       &arg->pool.poh, &arg->pool.pool_info,
 				       NULL /* ev */);
 		if (rc)
@@ -1522,7 +1522,8 @@ rebuild_multiple_tgts(void **state)
 			if (rank != leader) {
 				exclude_ranks[fail_cnt] = rank;
 				daos_exclude_server(arg->pool.pool_uuid,
-						    arg->group, &arg->pool.svc,
+						    arg->group,
+						    &arg->pool.orig_svc,
 						    rank);
 				if (++fail_cnt >= 2)
 					break;
@@ -1548,7 +1549,7 @@ rebuild_multiple_tgts(void **state)
 	if (arg->myrank == 0) {
 		for (i = 0; i < 2; i++)
 			daos_add_server(arg->pool.pool_uuid, arg->group,
-					&arg->pool.svc, exclude_ranks[i]);
+					&arg->pool.orig_svc, exclude_ranks[i]);
 	}
 	MPI_Barrier(MPI_COMM_WORLD);
 }
@@ -1582,7 +1583,6 @@ rebuild_master_failure(void **state)
 {
 	test_arg_t		*arg = *state;
 	daos_obj_id_t		oids[OBJ_NR];
-	daos_obj_id_t		cb_arg_oids[OBJ_NR];
 	daos_pool_info_t	pinfo = { 0 };
 	daos_pool_info_t	pinfo_new = { 0 };
 	int			i;
@@ -1598,21 +1598,12 @@ rebuild_master_failure(void **state)
 	for (i = 0; i < OBJ_NR; i++) {
 		oids[i] = dts_oid_gen(DAOS_OC_R3S_SPEC_RANK, 0, arg->myrank);
 		oids[i] = dts_oid_set_rank(oids[i], ranks_to_kill[0]);
-		cb_arg_oids[i] = dts_oid_gen(OBJ_CLS, 0, arg->myrank);
 	}
 
 	/* prepare the data */
 	rebuild_io(arg, oids, OBJ_NR);
 
-	arg->rebuild_cb = rebuild_io_cb;
-	arg->rebuild_cb_arg = cb_arg_oids;
-	arg->rebuild_post_cb = rebuild_io_post_cb;
-	arg->rebuild_post_cb_arg = cb_arg_oids;
-
 	rebuild_targets(&arg, 1, ranks_to_kill, NULL, 1, true);
-
-	arg->rebuild_cb = NULL;
-	arg->rebuild_post_cb = NULL;
 
 	/* Verify the data */
 	rebuild_io_validate(arg, oids, OBJ_NR, true);
@@ -1630,6 +1621,27 @@ rebuild_master_failure(void **state)
 	assert_int_equal(pinfo_new.pi_rebuild_st.rs_done, 1);
 	rc = memcmp(&pinfo.pi_rebuild_st, &pinfo_new.pi_rebuild_st,
 		    sizeof(pinfo.pi_rebuild_st));
+	if (rc != 0) {
+		print_message("old ver %u pad %u err %d done %d tobeobj "
+			      DF_U64" obj "DF_U64" rec "DF_U64"\n",
+			      pinfo.pi_rebuild_st.rs_version,
+			      pinfo.pi_rebuild_st.rs_pad_32,
+			      pinfo.pi_rebuild_st.rs_errno,
+			      pinfo.pi_rebuild_st.rs_done,
+			      pinfo.pi_rebuild_st.rs_toberb_obj_nr,
+			      pinfo.pi_rebuild_st.rs_obj_nr,
+			      pinfo.pi_rebuild_st.rs_rec_nr);
+		print_message("new ver %u pad %u err %d done %d tobeobj "
+			      DF_U64" obj "DF_U64" rec "DF_U64"\n",
+			      pinfo_new.pi_rebuild_st.rs_version,
+			      pinfo_new.pi_rebuild_st.rs_pad_32,
+			      pinfo_new.pi_rebuild_st.rs_errno,
+			      pinfo_new.pi_rebuild_st.rs_done,
+			      pinfo_new.pi_rebuild_st.rs_toberb_obj_nr,
+			      pinfo_new.pi_rebuild_st.rs_obj_nr,
+			      pinfo_new.pi_rebuild_st.rs_rec_nr);
+	}
+
 	print_message("svc leader changed from %d to %d, should get same "
 		      "rebuild status (memcmp result %d).\n", pinfo.pi_leader,
 		      pinfo_new.pi_leader, rc);
@@ -1691,20 +1703,20 @@ rebuild_fail_all_replicas_before_rebuild(void **state)
 
 	/* Kill one replica and start rebuild */
 	shard = layout->ol_shards[0];
-	daos_kill_server(arg, arg->pool.pool_uuid, arg->group, &arg->pool.svc,
-			 shard->os_ranks[0]);
-	daos_exclude_server(arg->pool.pool_uuid, arg->group, &arg->pool.svc,
-			    shard->os_ranks[0]);
+	daos_kill_server(arg, arg->pool.pool_uuid, arg->group,
+			 &arg->pool.svc, shard->os_ranks[0]);
+	daos_exclude_server(arg->pool.pool_uuid, arg->group,
+			    &arg->pool.orig_svc, shard->os_ranks[0]);
 
 	/* Sleep 10 seconds after it scan finish and hang before rebuild */
 	print_message("sleep 10 seconds to wait scan to be finished \n");
 	sleep(10);
 
 	/* Then kill rank 1 */
-	daos_kill_server(arg, arg->pool.pool_uuid, arg->group, &arg->pool.svc,
-			 shard->os_ranks[1]);
-	daos_exclude_server(arg->pool.pool_uuid, arg->group, &arg->pool.svc,
-			    shard->os_ranks[1]);
+	daos_kill_server(arg, arg->pool.pool_uuid, arg->group,
+			 &arg->pool.svc, shard->os_ranks[1]);
+	daos_exclude_server(arg->pool.pool_uuid, arg->group,
+			    &arg->pool.orig_svc, shard->os_ranks[1]);
 
 	/* Continue rebuild */
 	daos_mgmt_set_params(arg->group, -1, DSS_KEY_FAIL_LOC, 0, 0, NULL);
@@ -1755,7 +1767,7 @@ rebuild_fail_all_replicas(void **state)
 			d_rank_t rank = layout->ol_shards[i]->os_ranks[j];
 
 			daos_exclude_server(arg->pool.pool_uuid, arg->group,
-					    &arg->pool.svc, rank);
+					    &arg->pool.orig_svc, rank);
 		}
 	}
 

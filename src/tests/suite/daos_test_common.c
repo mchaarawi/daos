@@ -276,6 +276,8 @@ test_setup(void **state, unsigned int step, bool multi_rank,
 
 		arg->pool.svc.rl_nr = svc_nreplicas;
 		arg->pool.svc.rl_ranks = arg->pool.ranks;
+		arg->pool.orig_svc.rl_nr = svc_nreplicas;
+		arg->pool.orig_svc.rl_ranks = arg->pool.ranks;
 		arg->pool.slave = false;
 
 		arg->mode = 0731;
