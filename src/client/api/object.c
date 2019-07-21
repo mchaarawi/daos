@@ -271,3 +271,20 @@ daos_obj_layout_get(daos_handle_t coh, daos_obj_id_t oid,
 
 	return rc;
 }
+
+int
+daos_obj_verify(daos_handle_t coh, daos_obj_id_t oid, uint32_t flags)
+{
+	daos_handle_t	oh;
+	int		rc;
+
+	rc = daos_obj_open(coh, oid, 0, &oh, NULL);
+	if (rc != 0)
+		return rc;
+
+	rc = dc_obj_verify(oh, flags);
+
+	daos_obj_close(oh, NULL);
+
+	return rc;
+}

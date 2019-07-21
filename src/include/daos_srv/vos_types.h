@@ -137,6 +137,8 @@ enum {
 	VOS_IT_FOR_PURGE	= (1 << 4),
 	/** The iterator is for rebuild scan */
 	VOS_IT_FOR_REBUILD	= (1 << 5),
+	/** Exclude vos aggregation */
+	VOS_IT_EXC_AGGREGATION	= (1 << 6),
 };
 
 /**

@@ -922,8 +922,16 @@ int
 vos_obj_iter_prep(vos_iter_type_t type, vos_iter_param_t *param,
 		  struct vos_iterator **iter_pp)
 {
-	struct vos_obj_iter *oiter;
-	int		     rc;
+	struct vos_container	*cont;
+	struct vos_obj_iter	*oiter;
+	int			 rc;
+
+	cont = vos_hdl2cont(param->ip_hdl);
+	if (param->ip_flags & VOS_IT_EXC_AGGREGATION &&
+	    cont->vc_in_aggregation) {
+		D_WARN("There is race vos aggregation\n");
+		return -DER_BUSY;
+	}
 
 	D_ALLOC_PTR(oiter);
 	if (oiter == NULL)

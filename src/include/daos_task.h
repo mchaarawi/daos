@@ -479,6 +479,7 @@ typedef struct {
 	daos_anchor_t		*dkey_anchor;
 	daos_anchor_t		*akey_anchor;
 	uint32_t		*versions;
+	daos_epoch_t		*epoch;
 	bool			incr_order;
 } daos_obj_list_t;
 
@@ -538,6 +539,7 @@ typedef daos_obj_list_t		daos_obj_list_recx_t;
  * daos_anchor_t	*dkey_anchor;
  * daos_anchor_t	*akey_anchor;
  * uint32_t		*versions;
+ * daos_epoch_t		*epoch;
  * bool			incr_order;
 */
 typedef daos_obj_list_t		daos_obj_list_obj_t;

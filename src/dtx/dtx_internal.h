@@ -91,8 +91,6 @@ extern btr_ops_t dbtree_dtx_cf_ops;
 
 void dtx_aggregate(void *arg);
 void dtx_batched_commit(void *arg);
-int dtx_commit(uuid_t po_uuid, uuid_t co_uuid,
-	       struct dtx_entry *dtes, int count, uint32_t version);
 int dtx_abort(uuid_t po_uuid, uuid_t co_uuid,
 	      struct dtx_entry *dtes, int count, uint32_t version);
 int dtx_check(uuid_t po_uuid, uuid_t co_uuid,

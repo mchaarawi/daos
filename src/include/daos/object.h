@@ -345,6 +345,7 @@ int dc_obj_list_obj(tse_task_t *task);
 int dc_obj_fetch_md(daos_obj_id_t oid, struct daos_obj_md *md);
 int dc_obj_layout_get(daos_handle_t oh, struct daos_obj_layout **p_layout);
 int dc_obj_layout_refresh(daos_handle_t oh);
+int dc_obj_verify(daos_handle_t oh, uint32_t flags);
 daos_handle_t dc_obj_hdl2cont_hdl(daos_handle_t oh);
 
 /** Decode shard number from enumeration anchor */
@@ -366,6 +367,8 @@ enum daos_io_flags {
 	DIOF_TO_LEADER		= 0x1,
 	/* The RPC will be sent to specified replica. */
 	DIOF_TO_SPEC_SHARD	= 0x2,
+	/* Flush DTXs before list. */
+	DIOF_FLUSH_DTX		= 0x4,
 };
 
 #endif /* __DD_OBJ_H__ */
